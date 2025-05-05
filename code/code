@@ -1,0 +1,533 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define MAX_HEALTH 1000
+#define MAX_STAMINA 1000
+#define MAX_LENGTH 20
+
+typedef struct Node {
+    int health;
+    int stamina;
+    char attackList[30];
+    struct Node *next;
+} Node;
+
+typedef struct {
+    int health;
+    int stamina;
+    int count;
+    char attackList[30];
+    Node *history;
+} Player;
+
+int multiplicator(int stamina) {
+    if (stamina > 750) {
+        return 1;
+    } else if (stamina > 500) {
+        return 2;
+    } else if (stamina > 250) {
+        return 3;
+    } else {
+        return 4;
+    }
+}
+
+void clear_history(Player *player) {
+    Node *temp;
+    if (player==NULL||player->history== NULL){
+        return;
+    }
+    while (player->history != NULL) {
+        temp = player->history;
+        player->history = player->history->next;
+        free(temp);
+    }
+    player->history = NULL;
+}
+
+void one_time_clear_history(Player *player) {
+    Node *temp;
+    if (player==NULL||player->history== NULL) {
+        return;
+    }
+    temp = player->history;
+    player->history = player->history->next;
+    free(temp);
+    player->history = NULL;
+}
+
+void push_history(Player *player) {
+    Node *new_node = (Node *)malloc(sizeof(Node));
+    if (new_node == NULL) {
+        exit(EXIT_FAILURE);
+    }
+    
+    new_node->health = player->health;
+    new_node->stamina = player->stamina;
+    strncpy(new_node->attackList, player->attackList,30);
+    new_node->attackList[30] = '\0';
+    new_node->next = player->history;
+    player->history = new_node;
+}
+
+void initialize_player(Player *player) {
+    player->health = MAX_HEALTH;
+    player->stamina = MAX_STAMINA;
+    player->history = NULL;
+    player->count = 0;
+    memset(player->attackList, 0, sizeof(player->attackList));
+    push_history(player);
+}
+
+int count_attacks(const char *str) {
+    const char *combos[] = {"ARROZAO", "DADBAD", "STTEACC", "TATAPAAA"};
+    int num_combos = sizeof(combos) / sizeof(combos[0]);
+    int count = 0;
+
+    while (*str) {
+        int is_combo = 0;
+        for (int i = 0; i < num_combos; ++i) {
+            size_t combo_len = strlen(combos[i]);
+            if (strncmp(str, combos[i], combo_len) == 0) {
+                count++;
+                str += combo_len;
+                is_combo = 1;
+                break;
+            }
+        }
+        if (!is_combo) {
+            if (strchr("ZPAETRCBOMD ", *str)) {
+                count++;
+            }
+            str++;
+        }
+    }
+    return count;
+}
+
+void process_attack(Player *attacker, Player *defender, char attack, char defense,int multiplicador1,int multiplicador2) {
+    int damage = 0;
+    char pattern[12] = "ZPAETRCBOMD ";
+    
+
+    int matriz[12][12] = {
+        {0,4, 8, 12, 16, -20, -16, 12, -8, -4, 0, 20},
+        {-4,0,4, 8, 12, 16, -20, -16, -12, 16, 0, 20},
+        {-8,-4, 0, 4, 8, 12, 16, -20, -16, 12, 0, 20},
+        {-12,-8,-4,0,  4, -8, 12, 16, 20, -16, 0, 20},
+        {-16,-12,-8,-4, 0, 4, -8, 12, 16, 20,  0, 20},
+        {20,-16, -12, 8, -4, 0, 4, 8, 12, -16, 0, 20},
+        {16,20,-16, -12, 8, -4, 0, -8, -4, -8, 0, 20},
+        {-12,16,20,-16,-12, -8, 8, 0, 16, -20, 0, 20},
+        {8,12,16,-20, -16, -12, 4, -16, 0, 20, 0, 20},
+        {4,-16,-12,16, -20, 16, 8, 20, -20, 0, 0, 20},
+        { 0, 0, 0, 0,  0,  0,  0,  0,  0,  0,  0,  0},  
+        {-20,-20,-20,-20,-20,-20,-20,-20,-20,-20,0,0},
+    };
+    for (int i = 0; i < 12;i++){
+        for (int j = 0; j < 12;j++){
+            if (pattern[i]==attack &&pattern[j]==defense ){
+                damage = matriz[i][j];
+                break;
+            }
+            
+        }
+        
+    }
+    
+    if (damage<0){
+        attacker->health += damage*multiplicador1;
+    }else{
+        defender->health -= damage*multiplicador2;
+    }
+    attacker->stamina = (attacker->stamina - 25 < 0) ? 0 : attacker->stamina - 25;
+    defender->stamina = (defender->stamina - 25 < 0) ? 0 : defender->stamina - 25;
+    if (attack =='D'){
+        attacker->health -= damage*multiplicador1;
+        attacker->stamina = (attacker->stamina == 0) ? 0 : attacker->stamina + 25;
+        attacker->health = (attacker->health+10*multiplicador1 >= MAX_HEALTH)? 
+        MAX_HEALTH:attacker->health+10*multiplicador1;
+        attacker->stamina = (attacker->stamina - 10 <= 0) ? 0 : attacker->stamina - 10;    
+    }
+    if (defense =='D'){
+        defender->health += damage*multiplicador1;
+        defender->stamina = (defender->stamina == 0) ? 0 : defender->stamina + 25;
+        defender->health = (defender->health+10*multiplicador2 >= MAX_HEALTH)? 
+        MAX_HEALTH:defender->health+10*multiplicador2;
+        defender->stamina = (defender->stamina - 10 <= 0) ? 0 : defender->stamina - 10;    
+    }
+    if (attack ==' '){
+        attacker->stamina = (attacker->stamina == 0) ? 0 : attacker->stamina + 25;
+        attacker->stamina = (attacker->stamina + 25 >= MAX_STAMINA) ? MAX_STAMINA : attacker->stamina + 25;  
+
+    }
+    if (defense ==' '){
+        defender->stamina = (defender->stamina == 0) ? 0 : defender->stamina + 25;
+        defender->stamina = (defender->stamina + 25 >= MAX_STAMINA) ? MAX_STAMINA : defender->stamina + 25;
+    }
+    push_history(attacker);
+    push_history(defender);
+}
+
+void process_attack_list(Player *player) {
+    int count = count_attacks(player->attackList);
+    const char *combos[] = {"ARROZAO", "DADBAD", "STTEACC", "TATAPAAA"};
+    size_t num_combos = sizeof(combos) / sizeof(combos[0]);
+
+    if (count > MAX_LENGTH) {
+        const char *start = player->attackList;
+        const char *end = player->attackList + strlen(player->attackList);
+        int current_count = count;
+
+        while (current_count > MAX_LENGTH) {
+            int is_combo = 0;
+            for (size_t i = 0; i < num_combos; ++i) {
+                size_t combo_len = strlen(combos[i]);
+                if (strncmp(start, combos[i], combo_len) == 0) {
+                    start += combo_len;
+                    is_combo = 1;
+                    break;
+                }
+            }
+            if (!is_combo) {
+                start++;
+            }
+            current_count--;
+        }
+        memmove(player->attackList, start, end - start + 1);
+    }
+}
+
+void undo_moves(Player *player, int x) {
+    for (int i = 0; i < x && player->history != NULL; i++) {
+        one_time_clear_history(player);
+    }
+    if (player->history != NULL) {
+        player->health = player->history->health;
+        player->stamina = player->history->stamina;
+        strncpy(player->attackList, player->history->attackList, 20);
+    } else {
+        player->health = MAX_HEALTH;
+        player->stamina = MAX_STAMINA;
+        memset(player->attackList, 0, sizeof(player->attackList));
+    }
+}
+
+void process_combo(Player *attacker, Player *defender, char *attack, char *defense){
+    if (strcmp(defense, "ARROZAO") == 0) {
+        defender->stamina-=500;
+        attacker->health=(attacker->health-500 <= 0) ? 0 : attacker->health-500; 
+    } else if (strcmp(defense, "DADBAD") == 0) {
+        defender->stamina-=400;
+        attacker->health=(attacker->health-400 <= 0) ? 0 : attacker->health-400;
+    } else if (strcmp(defense, "STTEACC") == 0) {
+        defender->stamina-=300;
+        attacker->health=(attacker->health-300 <= 0) ? 0 : attacker->health-300;
+    } else if (strcmp(defense, "TATAPAAA") == 0){
+        defender->stamina-=200;
+        attacker->health=(attacker->health-200 <= 0) ? 0 : attacker->health-200;
+    } else if (strcmp(defense, " ") == 0){
+        defender->stamina = (defender->stamina + 25 >= MAX_STAMINA) ? MAX_STAMINA : defender->stamina + 25;
+    }
+
+    if (strcmp(attack, "ARROZAO") == 0) {
+        attacker->stamina-=500;
+        defender->health=(defender->health-500 <= 0) ? 0 : defender->health-500; 
+    } else if (strcmp(attack, "DADBAD") == 0) {
+        attacker->stamina-=400;
+        defender->health=(defender->health-400 <= 0) ? 0 : defender->health-400;
+    } else if (strcmp(attack, "STTEACC") == 0) {
+        attacker->stamina-=300;
+        defender->health=(defender->health-300 <= 0) ? 0 : defender->health-300;
+    } else if (strcmp(attack, "TATAPAAA") == 0){
+        attacker->stamina-=200;
+        defender->health=(defender->health-200 <= 0) ? 0 : defender->health-200;
+    } else if (strcmp(attack, " ") == 0){
+        attacker->stamina = (attacker->stamina + 25 >= MAX_STAMINA) ? MAX_STAMINA : attacker->stamina + 25;
+    }
+
+    push_history(attacker);
+    push_history(defender);
+}
+
+int chars(char *input) {
+    char *chars = "ZPAETRCOBDM";
+    int vdd = 0;
+    size_t length = strlen(input);
+    for (size_t count = 0; count < length; count++) {
+        if (input[count] == ' ') {
+            if (count != 0 && input[count - 1] != ' ' && count < length - 1 && input[count + 1] != ' ') {
+                vdd = 1;
+                return vdd;
+            }
+        }
+    }
+
+    for (size_t count = 0; count < length; count++) {
+        if (input[count] == ' ') {
+            break;
+        }
+        if (!strchr(chars, input[count])) {
+            vdd = 1;
+            return vdd;
+        }
+    }
+    
+    return vdd;
+}
+
+int process_input(char *input){
+if (strlen(input) > 5 || strlen(input) < 1) {
+    if (strcmp(input, "ARROZAO") == 0) {
+        return 4;
+    } else if (strcmp(input, "DADBAD") == 0) {
+        return 4;
+    } else if (strcmp(input, "STTEACC") == 0) {
+        return 4;
+    } else if (strcmp(input, "TATAPAAA") == 0){
+        return 4;
+    } else {
+        return 0;
+    }
+}
+if (chars(input)){
+    return 0;
+}
+if (strlen(input) == 3) return 2;
+if (strlen(input) == 2) return 2;
+if (strlen(input) == 1) return 2;
+return 1;
+}
+
+char read_input(char *input) {
+    fgets(input,20, stdin);
+    input[strcspn(input, "\n")] = '\0';
+    input[strcspn(input, "\r")] = '\0';
+    return input[0];
+}
+
+int main() {
+    Player player1, player2;
+    char attackPrint[20] = "";
+    char input[20] = "";
+    char attackChar1[20] = "";
+    char attackChar2[20] = "";
+    char input1Anterior[20] = "";
+    char input2Anterior[20] = "";
+    int multiplicador1 = 1;
+    int multiplicador2 = 1;
+    int inputProcess1 = 1;
+    int inputProcess2 = 1;
+    int len = 0;
+    initialize_player(&player1);
+    initialize_player(&player2);
+
+    while (player1.health >0 && player2.health>0) {
+        printf("P#1 [%d|%d] (x%d)\n", player1.health, player1.stamina,multiplicator(player1.stamina));
+        printf("H: %s\n",player1.attackList);
+        printf("I: ");
+        read_input(input);
+        inputProcess1 = process_input(input);
+        if (inputProcess1 == 0){
+            printf("Entrada invalida\n");
+            clear_history(&player1);
+            clear_history(&player2);
+            player1.history = NULL;
+            player2.history = NULL;
+            break;
+        }
+        if (inputProcess1==4){
+        if (strcmp(input, "ARROZAO") == 0) {
+            if (player1.stamina<750)
+            {
+                inputProcess1=5;
+                printf("Estamina insuficiente\n");
+            }
+            
+        } else if (strcmp(input, "DADBAD") == 0) {
+            if (player1.stamina<750)
+            {
+                inputProcess1=5;
+                printf("Estamina insuficiente\n");
+            }
+        } else if (strcmp(input, "STTEACC") == 0) {
+            if (player1.stamina<750)
+            {
+                inputProcess1=5;
+                printf("Estamina insuficiente\n");
+            }
+        } else if (strcmp(input, "TATAPAAA") == 0){
+            if (player1.stamina<750)
+            {
+                inputProcess1=5;
+                printf("Estamina insuficiente\n");
+            }
+        }
+        }
+        if (inputProcess1!=5){
+        if (inputProcess1==2)
+        {
+            strncpy(input1Anterior, input, strlen(input));
+            input1Anterior[strlen(input)]='\0';
+            if (strlen(input)==3){
+                strcat(input," ");
+            }else if(strlen(input)==2){
+                strcat(input,"  ");
+            }else{
+                strcat(input,"   ");
+            }
+        }
+        if (inputProcess1==4)
+        {
+            strncpy(attackChar1, input, strlen(input));
+            attackChar1[strlen(input)] = '\0';
+        }else{
+            strncpy(attackChar1, input, 4);
+            attackChar1[4] = '\0';
+        }
+
+        inputProcess2=5;
+        while (inputProcess2==5){
+        printf("P#2 [%d|%d] (x%d)\n", player2.health, player2.stamina,multiplicator(player2.stamina));
+        printf("H: %s\n",player2.attackList);
+        printf("I: ");
+        read_input(input);
+        inputProcess2 = process_input(input);
+        if (inputProcess2 == 0){
+            printf("Entrada invalida\n");
+            clear_history(&player1);
+            clear_history(&player2);
+            player1.history = NULL;
+            player2.history = NULL;
+            break;
+        }
+        if (inputProcess2==4){
+        if (strcmp(input, "ARROZAO") == 0) {
+            if (player2.stamina<750)
+            {
+                inputProcess2=5;
+                printf("Estamina insuficiente\n");
+            }
+            
+        } else if (strcmp(input, "DADBAD") == 0) {
+            if (player2.stamina<750)
+            {
+                inputProcess2=5;
+                printf("Estamina insuficiente\n");
+            }
+        } else if (strcmp(input, "STTEACC") == 0) {
+            if (player2.stamina<750)
+            {
+                inputProcess2=5;
+                printf("Estamina insuficiente\n");
+            }
+        } else if (strcmp(input, "TATAPAAA") == 0){
+            if (player2.stamina<750)
+            {
+                inputProcess2=5;
+                printf("Estamina insuficiente\n");
+            }
+        }
+        }
+        
+        if (inputProcess2!=5){
+        if (inputProcess2==2)
+        {
+            strncpy(input2Anterior, input, strlen(input));
+            input2Anterior[strlen(input)]='\0';
+            if (strlen(input)==3){
+                strcat(input," ");
+            }else if(strlen(input)==2){
+                strcat(input,"  ");
+            }else{
+                strcat(input,"   ");
+            }
+        }
+        if (inputProcess2==4)
+        {
+            strncpy(attackChar2, input, strlen(input));
+            attackChar2[strlen(input)] = '\0';
+        }else{
+            strncpy(attackChar2, input, 4);
+            attackChar2[4] = '\0';
+        }
+
+        attackPrint[0] = '\0';
+        multiplicador1 = multiplicator(player1.stamina);
+        multiplicador2 = multiplicator(player2.stamina);
+        if (inputProcess1==4||inputProcess2==4){
+            char buffer[100];
+            if (inputProcess1!=4)
+            {
+                strcpy(attackChar1," ");
+            }
+            if (inputProcess2!=4)
+            {
+                strcpy(attackChar2," ");
+            }
+            snprintf(buffer,sizeof(buffer),"[%s,%s]",attackChar1,attackChar2);
+            strcat(attackPrint,buffer);
+
+            
+                strncat(player1.attackList,attackChar1,strlen(attackChar1));
+                process_attack_list(&player1);
+            
+
+            
+                strncat(player2.attackList,attackChar2,strlen(attackChar2));
+                process_attack_list(&player2);
+            
+
+            process_combo(&player1,&player2,attackChar1,attackChar2);
+        } else {
+            if (inputProcess1!=4||inputProcess2!=4){
+            strncat(player1.attackList,attackChar1,strlen(attackChar1));
+            process_attack_list(&player1);
+
+            strncat(player2.attackList,attackChar2,strlen(attackChar2));
+            process_attack_list(&player2);
+            }
+            if (strlen(input1Anterior)==strlen(input2Anterior)){
+                if (strlen(input1Anterior)==3){
+                    strcpy(attackChar1,input1Anterior);
+                    strcpy(attackChar2,input2Anterior);
+                } else if (strlen(input1Anterior)==2){
+                    strcpy(attackChar1,input1Anterior);
+                    strcpy(attackChar2,input2Anterior);
+                } else if (strlen(input1Anterior)==1){
+                    strcpy(attackChar1,input1Anterior);
+                    strcpy(attackChar2,input2Anterior);
+                }
+            }
+            if (strlen(attackChar1)>strlen(attackChar2))
+            {
+                len = strlen(attackChar1);
+            } else {
+                len = strlen(attackChar2);
+            }
+            
+            for (int i = 0; i < len; i++) {
+                char buffer[10];
+                snprintf(buffer, sizeof(buffer), "[%c,%c]", attackChar1[i], attackChar2[i]);
+                strcat(attackPrint, buffer);
+
+                process_attack(&player2, &player1, attackChar2[i], attackChar1[i],multiplicador2,multiplicador1);
+            }
+        }
+        printf("%s\n", attackPrint);
+        }
+        }
+        if (inputProcess2==0){
+            break;
+        }
+        }
+    }
+    if (player1.health<=0) printf("Jogador 2 venceu o jogo!\n");
+    if (player2.health<=0) printf("Jogador 1 venceu o jogo!\n");
+    clear_history(&player1);
+    clear_history(&player2);
+    player1.history = NULL;
+    player2.history = NULL;
+    return 0;
+}
